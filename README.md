@@ -1,8 +1,25 @@
+<div align="center">
+
 # Auto-2048
 
-A dependency-free browser version of **2048** with a built-in **Expectimax AI** that can play the game for you or suggest your next move.
+**2048 in the browser with a tunable Expectimax AI that plays for you.**
 
-**▶ Play online: https://mrdadado.github.io/Auto-2048/**
+[![Play Now](https://img.shields.io/badge/▶_Play_Now-GitHub_Pages-edc22e?style=for-the-badge)](https://mrdadado.github.io/Auto-2048/)
+
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
+![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
+![Vanilla JS](https://img.shields.io/badge/vanilla-JavaScript-f7df1e.svg?logo=javascript&logoColor=black)
+[![GitHub stars](https://img.shields.io/github/stars/MrDaDaDo/Auto-2048?style=social)](https://github.com/MrDaDaDo/Auto-2048/stargazers)
+
+<img src="assets/demo.gif" alt="The AI playing 2048 on autopilot" width="360">
+
+<sub>The AI playing on autopilot (search depth 3, sped up 3×)</sub>
+
+</div>
+
+A dependency-free browser version of **2048** with a built-in **Expectimax AI** that can play the game for you or suggest your next move. Just open the page and hit **AI Autoplay**.
+
+> If you find this project fun or useful, please consider giving it a ⭐ — it really helps!
 
 ## Features
 
