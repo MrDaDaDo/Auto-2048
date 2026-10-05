@@ -2,6 +2,8 @@
 
 A dependency-free browser version of **2048** with a built-in **Expectimax AI** that can play the game for you or suggest your next move.
 
+**▶ Play online: https://mrdadado.github.io/Auto-2048/**
+
 ## Features
 
 - **Classic 2048 gameplay** with smooth sliding, spawn and merge animations
