@@ -47,6 +47,8 @@ const I18N = (() => {
       hint_max: 'Prefer building larger tiles',
       param_corner: 'Corner weight',
       hint_corner: 'Prefer keeping the largest tile in a corner',
+      aboutTitle: 'About Auto-2048',
+      about: 'Auto-2048 is a free, open-source 2048 game with a built-in AI solver. Press <b>AI Autoplay</b> to watch an <b>Expectimax</b> search play the game for you, or press <b>Hint</b> to see the best next move. Open <b>AI Settings</b> to tune the search depth and heuristic weights (empty cells, monotonicity, smoothness, corner) and see how they change the AI’s strategy. Source code on <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a>.',
     },
     'zh-Hant': {
       score: '分數',
@@ -83,6 +85,8 @@ const I18N = (() => {
       hint_max: '偏好做出更大的方塊',
       param_corner: '角落權重',
       hint_corner: '偏好把最大方塊放在角落',
+      aboutTitle: '關於 Auto-2048',
+      about: 'Auto-2048 是免費、開源的 2048 遊戲，內建 AI 解題器。按 <b>AI 自動玩</b> 就能看 <b>Expectimax</b> 搜尋演算法幫你玩，按 <b>提示</b> 則會顯示最佳的下一步。打開 <b>AI 參數</b> 可以調整搜尋深度與評分權重（空格、單調性、平滑度、角落），觀察 AI 策略如何改變。原始碼在 <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a>。',
     },
     'zh-Hans': {
       score: '分数',
@@ -119,6 +123,8 @@ const I18N = (() => {
       hint_max: '偏好做出更大的方块',
       param_corner: '角落权重',
       hint_corner: '偏好把最大方块放在角落',
+      aboutTitle: '关于 Auto-2048',
+      about: 'Auto-2048 是免费、开源的 2048 游戏，内置 AI 解题器。按 <b>AI 自动玩</b> 就能看 <b>Expectimax</b> 搜索算法帮你玩，按 <b>提示</b> 则会显示最佳的下一步。打开 <b>AI 参数</b> 可以调整搜索深度与评分权重（空格、单调性、平滑度、角落），观察 AI 策略如何变化。源代码在 <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a>。',
     },
     ja: {
       score: 'スコア',
@@ -155,6 +161,8 @@ const I18N = (() => {
       hint_max: 'より大きなタイルを作ることを優先',
       param_corner: '角の重み',
       hint_corner: '最大タイルを角に置くことを優先',
+      aboutTitle: 'Auto-2048 について',
+      about: 'Auto-2048 は AI ソルバーを内蔵した、無料でオープンソースの 2048 ゲームです。<b>AI 自動プレイ</b>を押すと <b>Expectimax</b> 探索が代わりにプレイし、<b>ヒント</b>を押すと最善の次の一手が表示されます。<b>AI 設定</b>で探索の深さや評価の重み（空きマス・単調性・滑らかさ・角）を調整して、AI の戦略の変化を確かめられます。ソースコードは <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a> で公開しています。',
     },
     ko: {
       score: '점수',
@@ -191,6 +199,8 @@ const I18N = (() => {
       hint_max: '더 큰 타일을 만드는 것을 선호',
       param_corner: '모서리 가중치',
       hint_corner: '가장 큰 타일을 모서리에 두는 것을 선호',
+      aboutTitle: 'Auto-2048 소개',
+      about: 'Auto-2048은 AI 솔버가 내장된 무료 오픈 소스 2048 게임입니다. <b>AI 자동 플레이</b>를 누르면 <b>Expectimax</b> 탐색이 대신 플레이하고, <b>힌트</b>를 누르면 최선의 다음 수를 보여 줍니다. <b>AI 설정</b>에서 탐색 깊이와 평가 가중치(빈칸, 단조성, 평탄도, 모서리)를 조정해 AI 전략이 어떻게 바뀌는지 확인해 보세요. 소스 코드는 <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a>에 있습니다.',
     },
   };
 

@@ -3,7 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>2048</title>
+<title>Auto-2048 – Play 2048 with an AI Autoplay Solver</title>
+<meta name="description" content="Play 2048 online for free, or watch an Expectimax AI play it for you. Get hints for the best move and tune the AI's search depth and heuristics. No ads, no install.">
+<link rel="canonical" href="https://mrdadado.github.io/Auto-2048/">
+<meta name="theme-color" content="#faf8ef">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Auto-2048">
+<meta property="og:url" content="https://mrdadado.github.io/Auto-2048/">
+<meta property="og:title" content="Auto-2048 – Play 2048 with an AI Autoplay Solver">
+<meta property="og:description" content="Play 2048 in your browser, or let an Expectimax AI play it for you. Hints, tunable AI, zero dependencies.">
+<meta property="og:image" content="https://mrdadado.github.io/Auto-2048/assets/og-image.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Auto-2048: a 2048 game board played by an AI">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Auto-2048 – Play 2048 with an AI Autoplay Solver">
+<meta name="twitter:description" content="Play 2048 in your browser, or let an Expectimax AI play it for you.">
+<meta name="twitter:image" content="https://mrdadado.github.io/Auto-2048/assets/og-image.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Auto-2048",
+  "url": "https://mrdadado.github.io/Auto-2048/",
+  "description": "Play 2048 online, or watch an Expectimax AI play it for you. Includes move hints and a tunable AI.",
+  "applicationCategory": "GameApplication",
+  "genre": "Puzzle",
+  "operatingSystem": "Any",
+  "browserRequirements": "Requires JavaScript",
+  "inLanguage": ["en", "zh-Hant", "zh-Hans", "ja", "ko"],
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "image": "https://mrdadado.github.io/Auto-2048/assets/og-image.png",
+  "author": { "@type": "Person", "name": "MrDaDaDo", "url": "https://github.com/MrDaDaDo" },
+  "sameAs": "https://github.com/MrDaDaDo/Auto-2048"
+}
+</script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -122,6 +161,10 @@
   }
   .win-toast.show { opacity: 1; }
   #resetParams { margin-top: 12px; padding: 6px 12px; font-size: 14px; }
+  .about { margin: 8px 0 32px; line-height: 1.6; }
+  .about h2 { font-size: 20px; margin: 0 0 4px; }
+  .about p { margin: 0; }
+  .about a { color: #8f7a66; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -129,39 +172,43 @@
   <header>
     <h1>2048</h1>
     <div class="scores">
-      <div class="score-box"><div class="label" data-i18n="score"></div><div class="value" id="score">0</div></div>
-      <div class="score-box"><div class="label" data-i18n="best"></div><div class="value" id="best">0</div></div>
+      <div class="score-box"><div class="label" data-i18n="score">Score</div><div class="value" id="score">0</div></div>
+      <div class="score-box"><div class="label" data-i18n="best">Best</div><div class="value" id="best">0</div></div>
     </div>
   </header>
   <div class="bar">
-    <span data-i18n-html="intro"></span>
+    <span data-i18n-html="intro">Join the numbers and get to the <b>2048</b> tile!</span>
     <div class="bar-actions">
       <select id="langSelect" aria-label="Language"></select>
-      <button id="newGame" data-i18n="newGame"></button>
+      <button id="newGame" data-i18n="newGame">New Game</button>
     </div>
   </div>
   <div class="board-wrap">
     <div class="board" id="board"></div>
     <div class="tile-layer" id="tileLayer"></div>
-    <div class="win-toast" id="winToast" data-i18n="win"></div>
+    <div class="win-toast" id="winToast" data-i18n="win">You win!</div>
     <div class="overlay" id="overlay">
-      <p data-i18n="gameOver"></p>
-      <button id="retryBtn" data-i18n="retry"></button>
+      <p data-i18n="gameOver">Game over!</p>
+      <button id="retryBtn" data-i18n="retry">Try again</button>
     </div>
   </div>
   <div class="ai-panel">
     <div class="ai-buttons">
-      <button id="aiToggle"></button>
-      <button id="hintBtn" data-i18n="hint"></button>
+      <button id="aiToggle">AI Autoplay</button>
+      <button id="hintBtn" data-i18n="hint">Hint</button>
       <span id="aiStatus"></span>
     </div>
     <details>
-      <summary data-i18n="aiParams"></summary>
+      <summary data-i18n="aiParams">AI Settings</summary>
       <div id="params"></div>
-      <button id="resetParams" data-i18n="reset"></button>
+      <button id="resetParams" data-i18n="reset">Reset to defaults</button>
     </details>
   </div>
-  <p class="tip" data-i18n-html="tip"></p>
+  <p class="tip" data-i18n-html="tip"><b>How to play:</b> Use the <b>arrow keys</b> or <b>WASD</b> to move the tiles. On mobile, swipe on the board.</p>
+  <section class="about">
+    <h2 data-i18n="aboutTitle">About Auto-2048</h2>
+    <p data-i18n-html="about">Auto-2048 is a free, open-source 2048 game with a built-in AI solver. Press <b>AI Autoplay</b> to watch an <b>Expectimax</b> search play the game for you, or press <b>Hint</b> to see the best next move. Open <b>AI Settings</b> to tune the search depth and heuristic weights (empty cells, monotonicity, smoothness, corner) and see how they change the AI’s strategy. Source code on <a href="https://github.com/MrDaDaDo/Auto-2048">GitHub</a>.</p>
+  </section>
 </div>
 <script src="i18n.js"></script>
 <script src="ai.js"></script>
