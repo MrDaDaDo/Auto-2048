@@ -57,3 +57,7 @@ game.js      Game logic, rendering, input and AI controls
 ai.js        Expectimax AI and Web Worker parallelization
 i18n.js      Translations and language switching
 ```
+
+## License
+
+Released into the public domain under [The Unlicense](LICENSE).
