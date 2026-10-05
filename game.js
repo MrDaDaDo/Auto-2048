@@ -252,19 +252,19 @@ document.getElementById('retryBtn').addEventListener('click', newGame);
 
 // ---------- AI ----------
 
-const PARAMS_KEY = 'ai2048Params';
+const PARAMS_KEY = 'ai2048Params.v2'; // v2：改用新評分方式，舊版權重不再適用
 const CPU_CORES = navigator.hardwareConcurrency || 4;
 // 參數名稱與說明文字由 i18n 的 param_<key> / hint_<key> 提供
+// depth 為 0 表示自動：依盤面複雜度調整搜尋深度
 const PARAM_DEFS = [
-  { key: 'depth',  min: 1, max: 5,    step: 1,    def: 3 },
+  { key: 'depth',  min: 0, max: 8,    step: 1,    def: 0 },
   { key: 'threads', min: 1, max: CPU_CORES, step: 1, def: CPU_CORES },
   { key: 'delay',  min: 0, max: 1000, step: 10,   def: 100 },
   { key: 'anim',   min: 0, max: 300,  step: 10,   def: 120 },
-  { key: 'empty',  min: 0, max: 5,    step: 0.1,  def: 2.7 },
-  { key: 'mono',   min: 0, max: 5,    step: 0.1,  def: 1.0 },
-  { key: 'smooth', min: 0, max: 1,    step: 0.05, def: 0.1 },
-  { key: 'max',    min: 0, max: 5,    step: 0.1,  def: 1.0 },
-  { key: 'corner', min: 0, max: 5,    step: 0.1,  def: 1.0 },
+  { key: 'empty',  min: 0, max: 1000, step: 10,   def: 270 },
+  { key: 'mono',   min: 0, max: 200,  step: 1,    def: 47 },
+  { key: 'merges', min: 0, max: 2000, step: 10,   def: 700 },
+  { key: 'sum',    min: 0, max: 50,   step: 0.5,  def: 11 },
 ];
 const ARROWS = { up: '↑', down: '↓', left: '←', right: '→' };
 
@@ -305,13 +305,15 @@ function buildParamControls() {
     row.className = 'param';
     row.innerHTML = `<span></span>
       <input type="range" min="${d.min}" max="${d.max}" step="${d.step}" value="${params[d.key]}">
-      <span class="val">${params[d.key]}</span>`;
+      <span class="val"></span>`;
     row.firstElementChild.textContent = t('param_' + d.key);
     const input = row.querySelector('input');
     const val = row.querySelector('.val');
+    const showVal = () => { val.textContent = d.key === 'depth' && !params.depth ? t('auto') : params[d.key]; };
+    showVal();
     input.addEventListener('input', () => {
       params[d.key] = Number(input.value);
-      val.textContent = input.value;
+      showVal();
       saveParams();
       applyAnimSpeed();
     });

@@ -30,10 +30,10 @@ A dependency-free browser version of **2048** with a built-in **Expectimax AI** 
 - **AI Autoplay**: lets the AI play continuously
 - **Hint**: shows the AI's suggested next move
 - **Tunable AI** from the in-page settings panel:
-  - Search depth
+  - Search depth (Auto by default: searches deeper as the board gets harder)
   - Number of threads (parallel search with Web Workers)
   - Delay per move and animation duration
-  - Heuristic weights: empty cells, monotonicity, smoothness, max tile, corner
+  - Heuristic weights: empty cells, monotonicity, merges, tile sum
 - **Multilingual UI**: English, 繁體中文, 简体中文, 日本語, 한국어 (auto-detected from the browser, selection remembered)
 - **Best score** saved in `localStorage`
 
@@ -51,24 +51,23 @@ No build step or dependencies are required.
 
 ## How the AI Works
 
-The AI uses **Expectimax search**:
+The AI uses **Expectimax search** on a compact bitboard, following the approach of [nneonneo/2048-ai](https://github.com/nneonneo/2048-ai):
 
+- **Bitboard**: the board is packed into 64 bits (4 bits per cell, stored as two 32-bit integers). Each row is a 16-bit value, so moves and scores for all 65,536 possible rows are precomputed into lookup tables.
 - **Max nodes** try each of the four moves and pick the best.
 - **Chance nodes** average over every empty cell and new tile (2 with 90% probability, 4 with 10%).
-- Branches with very low cumulative probability are pruned and evaluated directly.
-- Results are cached per search to avoid re-evaluating repeated positions.
+- **Adaptive depth**: in Auto mode the search depth is `max(3, distinct tiles − 2)`, so the AI looks further ahead in the late game when mistakes are fatal.
+- Branches with a cumulative probability below 0.01% are pruned, and positions are cached in a transposition table.
+- Root moves are split across multiple Web Workers for deep searches.
 
-Leaf boards are scored with a weighted heuristic:
+Each row and column is scored with a weighted heuristic:
 
 | Term | Meaning |
 | --- | --- |
-| Empty cells | More free space is better (`log(empty + 1)`) |
-| Monotonicity | Rows and columns should increase or decrease consistently |
-| Smoothness | Neighboring tiles should have similar values |
-| Max tile | Rewards higher tiles |
-| Corner | Rewards keeping the largest tile in a corner |
-
-For deeper searches, root moves are split across multiple Web Workers to speed things up.
+| Empty cells | Reward for every free cell |
+| Merges | Reward for adjacent equal tiles |
+| Monotonicity | Penalty when values do not increase or decrease consistently along the row |
+| Tile sum | Penalty for large tiles on the board, which pushes the AI to merge them early |
 
 ## Project Structure
 

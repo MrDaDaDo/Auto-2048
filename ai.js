@@ -1,160 +1,249 @@
-// 2048 AI：Expectimax 搜尋 + 可調權重的盤面評分，可用 Web Worker 平行運算
-// 盤面以長度 16 的陣列表示，值為方塊的指數（2 → 1、4 → 2、2048 → 11，空格為 0）
+// 2048 AI：Expectimax 搜尋 + 查表式盤面評分，可用 Web Worker 平行運算
+// 演算法與評分方式參考 nneonneo/2048-ai：
+// 盤面壓成 64 位元（每格 4 位元存方塊指數），因 JS 位元運算只有 32 位元，拆成 hi（第 0、1 列）與 lo（第 2、3 列）
+// 每列 16 位元，第 j 欄位於 (3 - j) * 4 位元；移動與評分都以「每列查表」完成
 
 // 演算法核心：必須完全自給自足（不可引用外部變數），
 // 因為 Web Worker 會用 createAICore.toString() 重建同一份程式碼
 function createAICore() {
-  const N = 4;
-  const DIRS = ['up', 'down', 'left', 'right'];
-  const CORNERS = [0, N - 1, N * (N - 1), N * N - 1];
-  const TILES = [[1, 0.9], [2, 0.1]]; // 新方塊：2（90%）、4（10%）
-  const MIN_PROB = 1e-4;  // 累積機率低於此值的分支直接評分，不再展開
-  const LOSE = -1e6;      // 無路可走的盤面分數
+  const CPROB_MIN = 1e-4;   // 累積機率低於此值的分支直接評分，不再展開
+  const CACHE_DEPTH = 15;   // 只快取此深度以內的機率節點
+  const LOST_BASE = 200000; // 每列的基礎分，讓正常盤面分數為正；無路可走的盤面為 0
+  const MONO_POWER = 4;
+  const SUM_POWER = 3.5;
 
-  // 每個方向的 4 條線（盤面索引），索引 0 為方塊移動的終點端
-  const LINES = {};
-  for (const dir of DIRS) {
-    LINES[dir] = [];
-    for (let i = 0; i < N; i++) {
-      const line = [];
-      for (let j = 0; j < N; j++) {
-        if (dir === 'left') line.push(i * N + j);
-        else if (dir === 'right') line.push(i * N + (N - 1 - j));
-        else if (dir === 'up') line.push(j * N + i);
-        else line.push((N - 1 - j) * N + i);
+  // ---------- 每列查表 ----------
+  const ROW_LEFT = new Uint16Array(65536);
+  const ROW_RIGHT = new Uint16Array(65536);
+  const T_HI = new Uint32Array(65536); // 轉置用：第 0 列的 4 格分別放到新第 0～3 列的第 0 欄
+  const T_LO = new Uint32Array(65536);
+  const EMPTY = new Uint8Array(65536);
+  const HEUR = new Float64Array(65536);
+  let heurKey = '';
+
+  function reverseRow(r) {
+    return ((r & 0xf) << 12) | ((r & 0xf0) << 4) | ((r >> 4) & 0xf0) | (r >> 12);
+  }
+
+  for (let r = 0; r < 65536; r++) {
+    const line = [(r >> 12) & 15, (r >> 8) & 15, (r >> 4) & 15, r & 15];
+    // 向左滑動並合併（32768 + 32768 受 4 位元限制，視為不可合併）
+    const vals = line.filter(v => v);
+    const out = [];
+    for (let i = 0; i < vals.length; i++) {
+      if (vals[i] === vals[i + 1] && vals[i] < 15) { out.push(vals[i] + 1); i++; }
+      else out.push(vals[i]);
+    }
+    while (out.length < 4) out.push(0);
+    const left = (out[0] << 12) | (out[1] << 8) | (out[2] << 4) | out[3];
+    ROW_LEFT[r] = left;
+    ROW_RIGHT[reverseRow(r)] = reverseRow(left);
+    T_HI[r] = ((line[0] << 28) | (line[1] << 12)) >>> 0;
+    T_LO[r] = ((line[2] << 28) | (line[3] << 12)) >>> 0;
+    EMPTY[r] = 4 - vals.length;
+  }
+
+  // 每列評分：空格、可合併數、單調性、方塊大小總和（大方塊越少越好，迫使 AI 盡早合併）
+  function buildHeur(w) {
+    const key = [w.empty, w.mono, w.merges, w.sum].join();
+    if (key === heurKey) return;
+    heurKey = key;
+    for (let r = 0; r < 65536; r++) {
+      const line = [(r >> 12) & 15, (r >> 8) & 15, (r >> 4) & 15, r & 15];
+      let sum = 0, empty = 0, merges = 0, prev = 0, counter = 0;
+      for (const rank of line) {
+        sum += Math.pow(rank, SUM_POWER);
+        if (!rank) { empty++; continue; }
+        if (prev === rank) counter++;
+        else if (counter > 0) { merges += 1 + counter; counter = 0; }
+        prev = rank;
       }
-      LINES[dir].push(line);
+      if (counter > 0) merges += 1 + counter;
+      let monoLeft = 0, monoRight = 0;
+      for (let i = 1; i < 4; i++) {
+        const a = Math.pow(line[i - 1], MONO_POWER), b = Math.pow(line[i], MONO_POWER);
+        if (line[i - 1] > line[i]) monoLeft += a - b; else monoRight += b - a;
+      }
+      HEUR[r] = LOST_BASE + w.empty * empty + w.merges * merges
+        - w.mono * Math.min(monoLeft, monoRight) - w.sum * sum;
     }
   }
 
-  // 回傳移動後的新盤面；若盤面沒有變化則回傳 null
-  function move(b, dir) {
-    const out = b.slice();
-    let moved = false;
-    for (const line of LINES[dir]) {
-      const vals = [];
-      for (const k of line) if (b[k]) vals.push(b[k]);
-      const merged = [];
-      for (let i = 0; i < vals.length; i++) {
-        if (vals[i] === vals[i + 1]) {
-          merged.push(vals[i] + 1);
-          i++;
-        } else {
-          merged.push(vals[i]);
-        }
-      }
-      for (let j = 0; j < N; j++) {
-        const v = merged[j] || 0;
-        if (out[line[j]] !== v) moved = true;
-        out[line[j]] = v;
-      }
-    }
-    return moved ? out : null;
+  // ---------- 盤面操作（結果寫入共用變數，避免配置物件） ----------
+  let tH = 0, tL = 0; // transpose 結果
+  let mH = 0, mL = 0; // moveBoard 結果
+
+  function transpose(hi, lo) {
+    const r0 = hi >>> 16, r1 = hi & 0xffff, r2 = lo >>> 16, r3 = lo & 0xffff;
+    tH = (T_HI[r0] | (T_HI[r1] >>> 4) | (T_HI[r2] >>> 8) | (T_HI[r3] >>> 12)) >>> 0;
+    tL = (T_LO[r0] | (T_LO[r1] >>> 4) | (T_LO[r2] >>> 8) | (T_LO[r3] >>> 12)) >>> 0;
   }
 
-  // 盤面評分：空格、單調性、平滑度、最大方塊、最大方塊是否在角落
-  function evaluate(b, w) {
-    let empty = 0, max = 0, maxIdx = 0, smooth = 0;
-    for (let k = 0; k < N * N; k++) {
-      const v = b[k];
-      if (!v) { empty++; continue; }
-      if (v > max) { max = v; maxIdx = k; }
-      const c = k % N;
-      if (c + 1 < N && b[k + 1]) smooth -= Math.abs(v - b[k + 1]);
-      if (k + N < N * N && b[k + N]) smooth -= Math.abs(v - b[k + N]);
-    }
+  function applyRows(table, hi, lo) {
+    mH = ((table[hi >>> 16] << 16) | table[hi & 0xffff]) >>> 0;
+    mL = ((table[lo >>> 16] << 16) | table[lo & 0xffff]) >>> 0;
+  }
 
-    // 單調性：分別累計整體「遞增」與「遞減」的違反量，取較小的懲罰（列、欄各算一次）
-    let rowInc = 0, rowDec = 0, colInc = 0, colDec = 0;
-    for (let i = 0; i < N; i++) {
-      for (let j = 0; j + 1 < N; j++) {
-        const a = b[i * N + j], n = b[i * N + j + 1];
-        if (a > n) rowInc += n - a; else rowDec += a - n;
-        const p = b[j * N + i], q = b[(j + 1) * N + i];
-        if (p > q) colInc += q - p; else colDec += p - q;
+  // dir：0 上、1 下、2 左、3 右
+  function moveBoard(hi, lo, dir) {
+    if (dir === 2) return applyRows(ROW_LEFT, hi, lo);
+    if (dir === 3) return applyRows(ROW_RIGHT, hi, lo);
+    transpose(hi, lo);
+    applyRows(dir === 0 ? ROW_LEFT : ROW_RIGHT, tH, tL);
+    transpose(mH, mL);
+    mH = tH; mL = tL;
+  }
+
+  function rowsHeur(hi, lo) {
+    return HEUR[hi >>> 16] + HEUR[hi & 0xffff] + HEUR[lo >>> 16] + HEUR[lo & 0xffff];
+  }
+
+  function heur(hi, lo) {
+    transpose(hi, lo);
+    return rowsHeur(hi, lo) + rowsHeur(tH, tL);
+  }
+
+  function countEmpty(hi, lo) {
+    return EMPTY[hi >>> 16] + EMPTY[hi & 0xffff] + EMPTY[lo >>> 16] + EMPTY[lo & 0xffff];
+  }
+
+  function countDistinct(hi, lo) {
+    let bits = 0;
+    for (let s = 0; s < 32; s += 4) bits |= (1 << ((hi >>> s) & 15)) | (1 << ((lo >>> s) & 15));
+    bits >>= 1; // 不計空格
+    let n = 0;
+    while (bits) { bits &= bits - 1; n++; }
+    return n;
+  }
+
+  // ---------- 轉置表（開放定址雜湊，每次計算以 gen 區分新舊資料） ----------
+  const TT_BITS = 20, TT_SIZE = 1 << TT_BITS, TT_PROBE = 8;
+  const ttHi = new Int32Array(TT_SIZE), ttLo = new Int32Array(TT_SIZE), ttGen = new Int32Array(TT_SIZE);
+  const ttDepth = new Uint8Array(TT_SIZE), ttVal = new Float64Array(TT_SIZE);
+  let gen = 0;
+
+  function ttSlot(hi, lo) {
+    return (Math.imul(hi ^ Math.imul(lo, 0x9e3779b1), 0x85ebca6b) ^ lo) >>> (32 - TT_BITS);
+  }
+
+  // ---------- Expectimax ----------
+  let depthLimit = 3, curDepth = 0;
+
+  // 玩家節點：選擇期望值最高的方向；無路可走時為 0（遠低於任何正常盤面）
+  function moveNode(hi, lo, cprob) {
+    let best = 0;
+    curDepth++;
+    for (let dir = 0; dir < 4; dir++) {
+      moveBoard(hi, lo, dir);
+      const nh = mH, nl = mL;
+      if (nh !== hi || nl !== lo) {
+        const s = chanceNode(nh, nl, cprob);
+        if (s > best) best = s;
       }
     }
-    const mono = Math.max(rowInc, rowDec) + Math.max(colInc, colDec);
-    const corner = CORNERS.includes(maxIdx) ? max : 0;
-
-    return w.empty * Math.log(empty + 1)
-      + w.mono * mono
-      + w.smooth * smooth
-      + w.max * max
-      + w.corner * corner;
-  }
-
-  function emptyCells(b) {
-    const list = [];
-    for (let k = 0; k < N * N; k++) if (!b[k]) list.push(k);
-    return list;
-  }
-
-  // 玩家節點：選擇期望值最高的方向
-  function maxNode(b, depth, prob, ctx) {
-    let best = LOSE;
-    for (const dir of DIRS) {
-      const nb = move(b, dir);
-      if (nb) best = Math.max(best, chanceNode(nb, depth, prob, ctx));
-    }
+    curDepth--;
     return best;
   }
 
-  // 機率節點：在每個空格分別放入 2 或 4，取期望值
-  function chanceNode(b, depth, prob, ctx) {
-    if (depth <= 1 || prob < MIN_PROB) return evaluate(b, ctx.w);
+  // 機率節點：每個空格以 90% / 10% 放入 2 或 4，取期望值
+  function chanceNode(hi, lo, cprob) {
+    if (cprob < CPROB_MIN || curDepth >= depthLimit) return heur(hi, lo);
 
-    const key = String.fromCharCode.apply(null, b) + depth;
-    const cached = ctx.cache.get(key);
-    if (cached !== undefined) return cached;
-
-    const empties = emptyCells(b);
-    if (!empties.length) return evaluate(b, ctx.w);
-
-    let sum = 0;
-    for (const k of empties) {
-      for (const [v, p] of TILES) {
-        b[k] = v;
-        sum += p * maxNode(b, depth - 1, prob * p / empties.length, ctx);
-      }
-      b[k] = 0;
-    }
-    const value = sum / empties.length;
-    ctx.cache.set(key, value);
-    return value;
-  }
-
-  // 將根節點展開：每個合法方向的第一層機率節點拆成獨立工作，供平行計算
-  // 回傳 { dirs: [{ dir, score }], tasks: [{ d, board, weight }] }
-  // 深度為 1 時不需展開，直接以評分作為 score
-  function rootTasks(board, params) {
-    const dirs = [];
-    const tasks = [];
-    for (const dir of DIRS) {
-      const nb = move(board, dir);
-      if (!nb) continue;
-      const d = dirs.length;
-      const empties = emptyCells(nb);
-      if (params.depth <= 1 || !empties.length) {
-        dirs.push({ dir, score: evaluate(nb, params) });
-        continue;
-      }
-      dirs.push({ dir, score: 0 });
-      for (const k of empties) {
-        for (const [v, p] of TILES) {
-          const child = nb.slice();
-          child[k] = v;
-          tasks.push({ d, board: child, weight: p / empties.length });
+    let slot = -1;
+    if (curDepth < CACHE_DEPTH) {
+      slot = ttSlot(hi, lo);
+      for (let i = 0; i < TT_PROBE; i++) {
+        const j = (slot + i) & (TT_SIZE - 1);
+        if (ttGen[j] !== gen) break;
+        if (ttHi[j] === (hi | 0) && ttLo[j] === (lo | 0)) {
+          if (ttDepth[j] <= curDepth) return ttVal[j]; // 快取值的剩餘搜尋深度不少於目前所需
+          break;
         }
       }
     }
-    return { dirs, tasks };
+
+    const open = countEmpty(hi, lo);
+    cprob /= open;
+    let res = 0;
+    for (let s = 0; s < 32; s += 4) {
+      if (!((hi >>> s) & 15)) {
+        res += 0.9 * moveNode((hi | (1 << s)) >>> 0, lo, cprob * 0.9);
+        res += 0.1 * moveNode((hi | (2 << s)) >>> 0, lo, cprob * 0.1);
+      }
+      if (!((lo >>> s) & 15)) {
+        res += 0.9 * moveNode(hi, (lo | (1 << s)) >>> 0, cprob * 0.9);
+        res += 0.1 * moveNode(hi, (lo | (2 << s)) >>> 0, cprob * 0.1);
+      }
+    }
+    res /= open;
+
+    if (slot >= 0) {
+      // 找空位或同一盤面；都沒有就覆蓋最後一個探測位置
+      let j = slot;
+      for (let i = 0; i < TT_PROBE; i++) {
+        j = (slot + i) & (TT_SIZE - 1);
+        if (ttGen[j] !== gen || (ttHi[j] === (hi | 0) && ttLo[j] === (lo | 0))) break;
+      }
+      ttGen[j] = gen; ttHi[j] = hi | 0; ttLo[j] = lo | 0; ttDepth[j] = curDepth; ttVal[j] = res;
+    }
+    return res;
   }
 
-  // 計算一批工作的值（同一批共用轉置表快取）
-  function solveTasks(tasks, params) {
-    const ctx = { w: params, cache: new Map() };
-    return tasks.map(t => maxNode(t.board, params.depth - 1, t.weight, ctx));
+  // ---------- 對外介面 ----------
+  const DIRS = ['up', 'down', 'left', 'right'];
+
+  // 指數陣列（長度 16）→ [hi, lo]
+  function encode(board) {
+    let hi = 0, lo = 0;
+    for (let k = 0; k < 16; k++) {
+      const v = Math.min(board[k], 15);
+      if (k < 8) hi |= v << (28 - 4 * k);
+      else lo |= v << (28 - 4 * (k - 8));
+    }
+    return [hi >>> 0, lo >>> 0];
+  }
+
+  // 自動深度（params.depth 為 0）：盤面上不同的方塊越多，局面越複雜，搜得越深
+  function searchDepth(hi, lo, params) {
+    return params.depth > 0 ? params.depth : Math.max(3, countDistinct(hi, lo) - 2);
+  }
+
+  // 將根節點展開：每個合法方向的第一層機率節點拆成獨立工作，供平行計算
+  // 回傳 { dirs: [{ dir, score }], tasks: [{ d, hi, lo, weight }], depth }
+  function rootTasks(board, params) {
+    const [hi, lo] = encode(board);
+    const depth = searchDepth(hi, lo, params);
+    const dirs = [];
+    const tasks = [];
+    for (let dir = 0; dir < 4; dir++) {
+      moveBoard(hi, lo, dir);
+      const nh = mH, nl = mL;
+      if (nh === hi && nl === lo) continue;
+      const d = dirs.length;
+      dirs.push({ dir: DIRS[dir], score: 1e-6 });
+      const open = countEmpty(nh, nl);
+      for (let s = 0; s < 32; s += 4) {
+        for (const [v, p] of [[1, 0.9], [2, 0.1]]) {
+          if (!((nh >>> s) & 15)) tasks.push({ d, hi: (nh | (v << s)) >>> 0, lo: nl, weight: p / open });
+          if (!((nl >>> s) & 15)) tasks.push({ d, hi: nh, lo: (nl | (v << s)) >>> 0, weight: p / open });
+        }
+      }
+    }
+    return { dirs, tasks, depth };
+  }
+
+  // 計算一批工作的值。searchId 相同的多批工作屬於同一次搜尋，共用轉置表；
+  // 不同搜尋的盤面深度基準不同，必須清空（以 gen 標記）
+  let lastSearch = null;
+  function solveTasks(tasks, params, depth, searchId) {
+    buildHeur(params);
+    if (searchId === undefined || searchId !== lastSearch) {
+      gen++;
+      lastSearch = searchId;
+    }
+    depthLimit = depth;
+    curDepth = 0;
+    return tasks.map(t => moveNode(t.hi, t.lo, t.weight));
   }
 
   // 依工作結果加總各方向的期望值，回傳最佳方向
@@ -174,11 +263,12 @@ const AI = (() => {
   const core = createAICore();
   const PARALLEL_MIN_DEPTH = 4;
   const workerSrc = `const core = (${createAICore.toString()})();
-onmessage = e => postMessage({ id: e.data.id, values: core.solveTasks(e.data.tasks, e.data.params) });`;
+onmessage = e => postMessage({ id: e.data.id, values: core.solveTasks(e.data.tasks, e.data.params, e.data.depth, e.data.searchId) });`;
 
   let workers = [];
   let workersBroken = false;
   let nextId = 0;
+  let nextSearch = 0;
   const pending = new Map(); // id → { resolve, reject }
 
   function createWorker() {
@@ -214,39 +304,48 @@ onmessage = e => postMessage({ id: e.data.id, values: core.solveTasks(e.data.tas
     }
   }
 
-  function runOnWorker(worker, tasks, params) {
+  function runOnWorker(worker, tasks, params, depth, searchId) {
     return new Promise((resolve, reject) => {
       const id = nextId++;
       pending.set(id, { resolve, reject });
-      worker.postMessage({ id, tasks, params });
+      worker.postMessage({ id, tasks, params, depth, searchId });
     });
   }
 
-  // 連續分塊：相鄰工作（同方向、相近空格）的子盤面重複度高，
-  // 放在同一個 Worker 才能共用該 Worker 的快取。實測比交錯分配或更細的動態分塊都快。
-  async function solveParallel(tasks, params, n) {
-    const size = Math.ceil(tasks.length / n);
-    const chunks = [];
-    for (let i = 0; i < tasks.length; i += size) chunks.push(tasks.slice(i, i + size));
-    const results = await Promise.all(chunks.map((c, j) => runOnWorker(workers[j], c, params)));
-    return results.flat();
+  // 動態分配：工作依預估成本由大到小排序（新方塊為 2 的分支機率高、剪枝少，最花時間），
+  // 每個 Worker 做完一小批就領下一批，避免某個 Worker 拖住全部
+  async function solveParallel(tasks, params, depth, n) {
+    const searchId = nextSearch++;
+    const order = tasks.map((t, i) => i).sort((a, b) => tasks[b].weight - tasks[a].weight);
+    const batch = Math.max(1, Math.floor(order.length / (n * 4)));
+    const values = new Array(tasks.length);
+    let next = 0;
+    async function drain(worker) {
+      while (next < order.length) {
+        const idx = order.slice(next, next += batch);
+        const vals = await runOnWorker(worker, idx.map(i => tasks[i]), params, depth, searchId);
+        idx.forEach((i, j) => { values[i] = vals[j]; });
+      }
+    }
+    await Promise.all(workers.slice(0, n).map(drain));
+    return values;
   }
 
   async function bestMove(board, params) {
-    const { dirs, tasks } = core.rootTasks(board, params);
+    const { dirs, tasks, depth } = core.rootTasks(board, params);
     if (!dirs.length) return null;
 
-    // 淺層搜尋每步只需幾毫秒，Worker 的訊息往返反而更慢（實測深度 3 慢約 6 倍），只在深層時平行
+    // 淺層搜尋每步只需幾毫秒，Worker 的訊息往返反而更慢，只在深層時平行
     let values;
     const n = Math.min(params.threads || 1, tasks.length);
-    if (params.depth >= PARALLEL_MIN_DEPTH && n > 1 && ensureWorkers(params.threads)) {
+    if (depth >= PARALLEL_MIN_DEPTH && n > 1 && ensureWorkers(params.threads)) {
       try {
-        values = await solveParallel(tasks, params, n);
+        values = await solveParallel(tasks, params, depth, n);
       } catch {
-        values = core.solveTasks(tasks, params);
+        values = core.solveTasks(tasks, params, depth);
       }
     } else {
-      values = core.solveTasks(tasks, params);
+      values = core.solveTasks(tasks, params, depth);
     }
     return core.pickBest(dirs, tasks, values);
   }
