@@ -6,6 +6,8 @@
 
 [![Play Now](https://img.shields.io/badge/▶_Play_Now-GitHub_Pages-edc22e?style=for-the-badge)](https://mrdadado.github.io/Auto-2048/)
 
+**Play online: https://mrdadado.github.io/Auto-2048/**
+
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
 ![Vanilla JS](https://img.shields.io/badge/vanilla-JavaScript-f7df1e.svg?logo=javascript&logoColor=black)
