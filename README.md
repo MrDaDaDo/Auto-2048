@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/og-image.png" alt="Auto-2048: play 2048 in your browser, or let an Expectimax AI play it for you" width="640">
+
 # Auto-2048
 
 **2048 in the browser with a tunable Expectimax AI that plays for you.**
@@ -15,7 +17,7 @@
 
 <img src="assets/demo.gif" alt="The AI playing 2048 on autopilot" width="360">
 
-<sub>The AI playing on autopilot (search depth 3, sped up 3×)</sub>
+<sub>The AI playing on autopilot (default settings with automatic search depth, sped up 3×)</sub>
 
 </div>
 
