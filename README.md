@@ -80,6 +80,13 @@ ai.js        Expectimax AI and Web Worker parallelization
 i18n.js      Translations and language switching
 ```
 
+## More Auto Games
+
+- [Auto-Minesweeper](https://github.com/MrDaDaDo/Auto-Minesweeper) – Minesweeper with an exact-probability AI solver
+- [Auto-Sudoku](https://github.com/MrDaDaDo/Auto-Sudoku) – Sudoku with a human-technique AI solver
+
+Play them all at https://mrdadado.github.io/
+
 ## License
 
 Released into the public domain under [The Unlicense](LICENSE).
