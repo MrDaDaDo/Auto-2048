@@ -43,6 +43,15 @@
   "sameAs": "https://github.com/MrDaDaDo/Auto-2048"
 }
 </script>
+<script>
+  // 在畫面出現前決定主題：使用者選過就用選的，否則跟隨系統設定
+  (() => {
+    let saved = null;
+    try { saved = localStorage.getItem('autoGamesTheme'); } catch { /* 忽略 */ }
+    const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  })();
+</script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -166,6 +175,20 @@
   .about p { margin: 0; }
   .about p + p { margin-top: 8px; }
   .about a { color: #8f7a66; font-weight: bold; }
+  #themeToggle { padding: 0 10px; font-size: 18px; background: #eee4da; }
+
+  /* 深色主題 */
+  [data-theme="dark"] body { background: #1f1b16; color: #d6cdc4; }
+  [data-theme="dark"] h1 { color: #f0e6da; }
+  [data-theme="dark"] .score-box, [data-theme="dark"] .board { background: #4a4139; }
+  [data-theme="dark"] .cell { background: rgba(238, 228, 218, 0.08); }
+  [data-theme="dark"] .t2 { background: #5a5147; color: #f0e6da; }
+  [data-theme="dark"] .t4 { background: #6a5c48; color: #f0e6da; }
+  [data-theme="dark"] .tsuper { background: #e8dfd0; color: #3c3a32; }
+  [data-theme="dark"] .overlay { background: rgba(31, 27, 22, 0.75); }
+  [data-theme="dark"] .ai-panel, [data-theme="dark"] #langSelect, [data-theme="dark"] #themeToggle { background: #332d26; color: #d6cdc4; }
+  [data-theme="dark"] .param-hint { color: #a39a90; }
+  [data-theme="dark"] .about a { color: #c9a887; }
 </style>
 </head>
 <body>
@@ -175,6 +198,7 @@
     <div class="scores">
       <div class="score-box"><div class="label" data-i18n="score">Score</div><div class="value" id="score">0</div></div>
       <div class="score-box"><div class="label" data-i18n="best">Best</div><div class="value" id="best">0</div></div>
+      <button id="themeToggle" aria-label="Toggle dark theme"></button>
     </div>
   </header>
   <div class="bar">
@@ -212,6 +236,35 @@
     <p data-i18n-html="more">More games that play themselves: <a href="https://mrdadado.github.io/Auto-Minesweeper/">Auto-Minesweeper</a> and <a href="https://mrdadado.github.io/Auto-Sudoku/">Auto-Sudoku</a>. See them all at <a href="https://mrdadado.github.io/">Auto Games</a>.</p>
   </section>
 </div>
+<script>
+  // 主題切換：選擇存在 localStorage，同網域的其他 Auto Games 共用
+  (() => {
+    const KEY = 'autoGamesTheme';
+    const COLORS = { light: '#faf8ef', dark: '#1f1b16' };
+    const root = document.documentElement;
+    const btn = document.getElementById('themeToggle');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const query = matchMedia('(prefers-color-scheme: dark)');
+    const show = () => {
+      btn.textContent = root.dataset.theme === 'dark' ? '☀️' : '🌙';
+      if (meta) meta.content = COLORS[root.dataset.theme];
+    };
+    btn.addEventListener('click', () => {
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem(KEY, root.dataset.theme); } catch { /* 忽略 */ }
+      show();
+    });
+    // 沒有手動選過時，系統設定改變就跟著變
+    query.addEventListener('change', () => {
+      let saved = null;
+      try { saved = localStorage.getItem(KEY); } catch { /* 忽略 */ }
+      if (saved) return;
+      root.dataset.theme = query.matches ? 'dark' : 'light';
+      show();
+    });
+    show();
+  })();
+</script>
 <script src="i18n.js"></script>
 <script src="ai.js"></script>
 <script src="game.js"></script>

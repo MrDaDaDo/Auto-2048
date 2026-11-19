@@ -36,6 +36,7 @@ A dependency-free browser version of **2048** with a built-in **Expectimax AI** 
   - Number of threads (parallel search with Web Workers)
   - Delay per move and animation duration
   - Heuristic weights: empty cells, monotonicity, merges, tile sum
+- **Light and dark themes**: follows your system setting, with a toggle that is remembered across all Auto Games
 - **Multilingual UI**: English, 繁體中文, 简体中文, 日本語, 한국어 (auto-detected from the browser, selection remembered)
 - **Best score** saved in `localStorage`
 
