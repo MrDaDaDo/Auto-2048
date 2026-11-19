@@ -85,6 +85,7 @@ i18n.js      Translations and language switching
 
 - [Auto-Minesweeper](https://github.com/MrDaDaDo/Auto-Minesweeper) – Minesweeper with an exact-probability AI solver
 - [Auto-Sudoku](https://github.com/MrDaDaDo/Auto-Sudoku) – Sudoku with a human-technique AI solver
+- [Auto-Blocks](https://github.com/MrDaDaDo/Auto-Blocks) – Falling-block puzzle with a tunable AI that stacks and clears lines
 
 Play them all at https://mrdadado.github.io/
 
